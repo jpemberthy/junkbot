@@ -22,3 +22,9 @@ _testmain.go
 *.exe
 *.test
 *.prof
+
+# binaries
+junkbot
+
+# generated files
+dithered.png

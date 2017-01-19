@@ -5,7 +5,9 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"math/rand"
 	"os"
+	"time"
 )
 
 var black = color.Gray{0}
@@ -14,7 +16,8 @@ var white = color.Gray{255}
 func main() {
 	img, _ := loadImage("img/junkbot.png")
 	gray := rgbaToGray(img)
-	dithered := thresholdDither(gray)
+	// dithered := thresholdDither(gray)
+	dithered := gridDither(gray, 10, 8)
 
 	f, _ := os.Create("dithered.png")
 	defer f.Close()
@@ -36,6 +39,43 @@ func thresholdDither(gray *image.Gray) *image.Gray {
 	return dithered
 }
 
+func gridDither(gray *image.Gray, k int, gamma float64) *image.Gray {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	bounds := gray.Bounds()
+	dithered := newWhite(bounds)
+	width := bounds.Dx()
+	height := bounds.Dy()
+
+	for i := 0; i < width; i += k {
+		for j := 0; j < height; j += k {
+			cell := rgbaToGray(gray.SubImage(image.Rect(i, j, i+k, j+k)))
+			mu := avgIntensity(cell)
+			n := (1 - mu) * gamma
+
+			// TODO: double check this.
+			for k := 1; k <= int(n); k++ {
+				x := randInt(i, min(i+k, width), rng)
+				y := randInt(j, min(j+k, height), rng)
+
+				dithered.SetGray(x, y, black)
+			}
+		}
+	}
+
+	return dithered
+}
+
+func randInt(min, max int, rng *rand.Rand) int {
+	return rng.Intn(max-min) + min
+}
+
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
 func loadImage(filepath string) (image.Image, error) {
 	infile, err := os.Open(filepath)
 	if err != nil {
@@ -47,6 +87,14 @@ func loadImage(filepath string) (image.Image, error) {
 		return nil, err
 	}
 	return img, nil
+}
+
+func newWhite(bounds image.Rectangle) *image.Gray {
+	white := image.NewGray(bounds)
+	for i := range white.Pix {
+		white.Pix[i] = 255
+	}
+	return white
 }
 
 func rgbaToGray(img image.Image) *image.Gray {
@@ -61,6 +109,14 @@ func rgbaToGray(img image.Image) *image.Gray {
 	}
 
 	return gray
+}
+
+func avgIntensity(gray *image.Gray) float64 {
+	var sum float64
+	for _, pix := range gray.Pix {
+		sum += float64(pix)
+	}
+	return sum / float64(len(gray.Pix)*256)
 }
 
 func blackOrWhite(g color.Gray) color.Gray {
